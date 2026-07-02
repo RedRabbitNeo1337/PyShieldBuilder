@@ -23,7 +23,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="pyshieldbuilder")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    build_cmd = sub.add_parser("build", help="Build encrypted package")
+    build_cmd = sub.add_parser(
+        "build",
+        help="Build encrypted package with Stage 1 source protection",
+    )
     build_cmd.add_argument("--source", required=True)
     build_cmd.add_argument("--entrypoint", required=True)
     build_cmd.add_argument("--output", required=True)

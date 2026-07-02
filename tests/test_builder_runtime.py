@@ -1,6 +1,7 @@
 from pathlib import Path
 
-from pyshieldbuilder.builder import PyShieldBuilder
+from pyshieldbuilder.builder import PyShieldBuilder, load_and_decrypt
+from pyshieldbuilder.package import extract_source_archive
 from pyshieldbuilder.runtime import execute_package, inspect_package
 
 
@@ -31,6 +32,13 @@ def test_build_inspect_execute(tmp_path: Path) -> None:
     metadata = inspect_package(str(package_path), "top-secret")
     assert metadata.entrypoint == "app.main:run"
     assert metadata.file_count == 3
+    assert metadata.stage1_enabled is True
+    assert metadata.source_protection == "marshal+zlib+base85"
+
+    payload = load_and_decrypt(str(package_path), "top-secret")
+    source_map = extract_source_archive(payload.archive_bytes)
+    assert "exec(_m.loads(_z.decompress(_b64.b85decode(" in source_map["app/main.py"]
+    assert "return f'run:{message()}'" not in source_map["app/main.py"]
 
     result = execute_package(str(package_path), "top-secret")
     assert result == "run:ok"

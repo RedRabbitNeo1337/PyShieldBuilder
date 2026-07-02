@@ -8,6 +8,7 @@ PyShieldBuilder builds encrypted package envelopes containing Python source arch
 
 - `pyshieldbuilder.crypto`: AES-256-GCM encryption/decryption
 - `pyshieldbuilder.integrity`: SHA-256 integrity functions
+- `pyshieldbuilder.protection`: Stage 1 source protection before encryption
 - `pyshieldbuilder.package`: source archive creation/extraction
 - `pyshieldbuilder.builder`: package construction/decryption loader
 - `pyshieldbuilder.runtime`: metadata inspection and in-memory execution

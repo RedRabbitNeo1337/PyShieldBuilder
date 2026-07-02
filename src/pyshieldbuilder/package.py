@@ -6,6 +6,8 @@ import io
 import tarfile
 from pathlib import Path
 
+from .protection import protect_source
+
 
 def create_source_archive(source_dir: str | Path) -> bytes:
     """Create a tar.gz archive containing Python files from *source_dir*."""
@@ -19,7 +21,13 @@ def create_source_archive(source_dir: str | Path) -> bytes:
             if "__pycache__" in file_path.parts:
                 continue
             arcname = file_path.relative_to(root).as_posix()
-            tf.add(file_path, arcname=arcname)
+            source = file_path.read_text(encoding="utf-8")
+            protected_source = protect_source(source, arcname)
+            payload = protected_source.encode("utf-8")
+
+            info = tarfile.TarInfo(name=arcname)
+            info.size = len(payload)
+            tf.addfile(info, io.BytesIO(payload))
     return buffer.getvalue()
 
 

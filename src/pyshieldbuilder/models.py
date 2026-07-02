@@ -14,6 +14,8 @@ class PackageMetadata:
     entrypoint: str
     file_count: int
     payload_sha256: str
+    stage1_enabled: bool = False
+    source_protection: str | None = None
 
 
 @dataclass(slots=True, frozen=True)

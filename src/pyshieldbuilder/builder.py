@@ -13,6 +13,7 @@ from .exceptions import InvalidPackageError, PackageBuildError
 from .integrity import hash_bytes, verify_digest
 from .models import DecryptedPayload, PackageMetadata
 from .package import create_source_archive
+from .protection import STAGE1_METHOD
 
 _FORMAT_VERSION = 1
 
@@ -50,6 +51,8 @@ def build_package(
         "entrypoint": entrypoint,
         "file_count": sum(1 for _ in Path(source_dir).rglob("*.py")),
         "payload_sha256": payload_sha256,
+        "stage1_enabled": True,
+        "source_protection": STAGE1_METHOD,
     }
 
     aad = json.dumps(metadata, sort_keys=True).encode("utf-8")
@@ -93,5 +96,7 @@ def load_and_decrypt(package_path: str | Path, password: str) -> DecryptedPayloa
         entrypoint=metadata["entrypoint"],
         file_count=metadata["file_count"],
         payload_sha256=metadata["payload_sha256"],
+        stage1_enabled=metadata.get("stage1_enabled", False),
+        source_protection=metadata.get("source_protection"),
     )
     return DecryptedPayload(metadata=package_meta, archive_bytes=archive)

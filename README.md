@@ -7,6 +7,7 @@ PyShieldBuilder is a production-focused Python project for protecting Python sou
 - Python 3.12+
 - AES-256-GCM payload encryption
 - PBKDF2 key derivation with strong defaults
+- Stage 1 source protection (marshal/zlib/base85 wrapper) before encryption
 - SHA-256 payload integrity verification
 - Memory-only module import and execution
 - CLI for build/inspect/run workflows
@@ -37,6 +38,8 @@ pyshieldbuilder inspect --package ./dist/example.psb --password "strong-password
 
 pyshieldbuilder run --package ./dist/example.psb --password "strong-password"
 ```
+
+`build` applies Stage 1 source protection to each collected `.py` file before payload encryption.
 
 ## Project Structure
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import asdict
 import json
 import os
 from pathlib import Path
@@ -52,7 +53,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "inspect":
         metadata = inspect_package(args.package, password)
-        print(json.dumps(metadata.__dict__, indent=2))
+        print(json.dumps(asdict(metadata), indent=2))
         return 0
 
     result = execute_package(args.package, password, entrypoint=args.entrypoint)

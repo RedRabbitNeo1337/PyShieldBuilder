@@ -30,15 +30,20 @@ class _InMemoryLoader(importlib.abc.Loader):
 
 
 class _InMemoryFinder(importlib.abc.MetaPathFinder):
-    def __init__(self, module_map: dict[str, str]) -> None:
+    def __init__(self, module_map: dict[str, str], package_names: set[str]) -> None:
         self._module_map = module_map
+        self._package_names = package_names
 
     def find_spec(self, fullname: str, path: object | None, target: object | None = None):
         source = self._module_map.get(fullname)
         if source is None:
             return None
         loader = _InMemoryLoader(fullname, source)
-        return importlib.util.spec_from_loader(fullname, loader)
+        return importlib.util.spec_from_loader(
+            fullname,
+            loader,
+            is_package=fullname in self._package_names,
+        )
 
 
 def _module_name_from_path(path: str) -> str:
@@ -61,13 +66,18 @@ def execute_package(package_path: str, password: str, *, entrypoint: str | None 
     payload = load_and_decrypt(package_path, password)
     source_map = extract_source_archive(payload.archive_bytes)
     module_map = {_module_name_from_path(path): source for path, source in source_map.items()}
+    package_names = {
+        _module_name_from_path(path)
+        for path in source_map
+        if path.endswith("__init__.py")
+    }
 
     selected_entrypoint = entrypoint or payload.metadata.entrypoint
     module_name, _, attr_name = selected_entrypoint.partition(":")
     if module_name not in module_map:
         raise RuntimeExecutionError(f"entrypoint module not found: {module_name}")
 
-    finder = _InMemoryFinder(module_map)
+    finder = _InMemoryFinder(module_map, package_names)
     sys.meta_path.insert(0, finder)
     try:
         module = importlib.import_module(module_name)

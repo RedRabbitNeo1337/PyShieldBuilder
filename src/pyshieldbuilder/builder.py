@@ -13,6 +13,7 @@ from .exceptions import InvalidPackageError, PackageBuildError
 from .integrity import hash_bytes, verify_digest
 from .models import DecryptedPayload, PackageMetadata
 from .package import create_source_archive
+from .stage1 import _PPLN, _PV, _RV, protect_archive, unprotect_archive
 
 _FORMAT_VERSION = 1
 
@@ -43,17 +44,26 @@ def build_package(
     if not archive:
         raise PackageBuildError("no source files were collected")
 
-    payload_sha256 = hash_bytes(archive)
-    metadata = {
+    # Apply Stage 1 obfuscation before encryption.
+    s1_envelope = protect_archive(archive)
+    payload = json.dumps(s1_envelope, separators=(",", ":")).encode("utf-8")
+    payload_sha256 = hash_bytes(payload)
+
+    metadata: dict = {
         "format_version": _FORMAT_VERSION,
         "created_at": datetime.now(UTC).isoformat(),
         "entrypoint": entrypoint,
         "file_count": sum(1 for _ in Path(source_dir).rglob("*.py")),
         "payload_sha256": payload_sha256,
+        "stage1_enabled": True,
+        "source_protection": True,
+        "protection_version": _PV,
+        "protection_pipeline": _PPLN,
+        "runtime_version": _RV,
     }
 
     aad = json.dumps(metadata, sort_keys=True).encode("utf-8")
-    salt, nonce, ciphertext = encrypt_bytes(archive, password, aad=aad)
+    salt, nonce, ciphertext = encrypt_bytes(payload, password, aad=aad)
 
     envelope = {
         "metadata": metadata,
@@ -74,7 +84,7 @@ def load_and_decrypt(package_path: str | Path, password: str) -> DecryptedPayloa
         envelope = json.loads(Path(package_path).read_text(encoding="utf-8"))
         metadata = envelope["metadata"]
         aad = json.dumps(metadata, sort_keys=True).encode("utf-8")
-        archive = decrypt_bytes(
+        raw_payload = decrypt_bytes(
             base64.b64decode(envelope["ciphertext"]),
             password,
             base64.b64decode(envelope["salt"]),
@@ -84,8 +94,17 @@ def load_and_decrypt(package_path: str | Path, password: str) -> DecryptedPayloa
     except Exception as exc:
         raise InvalidPackageError("invalid package envelope") from exc
 
-    if not verify_digest(archive, metadata["payload_sha256"]):
+    if not verify_digest(raw_payload, metadata["payload_sha256"]):
         raise InvalidPackageError("payload integrity verification failed")
+
+    # Reconstruct archive: stage1-enabled packages store an obfuscated payload.
+    s1_enabled: bool = bool(metadata.get("stage1_enabled", False))
+    if s1_enabled:
+        s1_data = json.loads(raw_payload.decode("utf-8"))
+        archive = unprotect_archive(s1_data)
+    else:
+        # Legacy package: payload is the raw archive bytes.
+        archive = raw_payload
 
     package_meta = PackageMetadata(
         format_version=metadata["format_version"],
@@ -93,5 +112,10 @@ def load_and_decrypt(package_path: str | Path, password: str) -> DecryptedPayloa
         entrypoint=metadata["entrypoint"],
         file_count=metadata["file_count"],
         payload_sha256=metadata["payload_sha256"],
+        stage1_enabled=s1_enabled,
+        source_protection=bool(metadata.get("source_protection", s1_enabled)),
+        protection_version=metadata.get("protection_version", ""),
+        protection_pipeline=metadata.get("protection_pipeline", ""),
+        runtime_version=metadata.get("runtime_version", ""),
     )
     return DecryptedPayload(metadata=package_meta, archive_bytes=archive)

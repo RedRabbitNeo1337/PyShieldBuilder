@@ -228,7 +228,7 @@ def _encrypt_archive(
     reproducible: bool,
 ) -> tuple[bytes, bytes, bytes]:
     if reproducible:
-        seed = hashlib.sha256(password.encode("utf-8") + aad + archive).digest()
+        seed = hashlib.sha256(aad + archive).digest()
         salt = seed[:16]
         nonce = seed[16:28]
         ciphertext = _encrypt_with_fixed_material(archive, password, salt, nonce, aad)

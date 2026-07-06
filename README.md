@@ -1,16 +1,16 @@
 # PyShieldBuilder
 
-PyShieldBuilder is a production-focused Python project for protecting Python source code through encrypted packaging, integrity verification, and in-memory execution.
+PyShieldBuilder is a Python source protection tool for encrypted packaging, manifest verification, and in-memory execution.
 
 ## Features
 
 - Python 3.12+
+- Source transformation pipeline
 - AES-256-GCM payload encryption
-- PBKDF2 key derivation with strong defaults
-- SHA-256 payload integrity verification
-- Memory-only module import and execution
-- CLI for build/inspect/run workflows
-- Unit-tested public APIs
+- Manifest signing and integrity checks
+- Memory-only module execution
+- CLI for build, verify, inspect, extract, run, benchmark, version, doctor, and clean
+- Wheel, editable, and pip installation support
 
 ## Installation
 
@@ -33,10 +33,32 @@ pyshieldbuilder build \
   --output ./dist/example.psb \
   --password "strong-password"
 
+pyshieldbuilder verify --package ./dist/example.psb --password "strong-password"
 pyshieldbuilder inspect --package ./dist/example.psb --password "strong-password"
 
+pyshieldbuilder extract --package ./dist/example.psb --output ./out --password "strong-password"
 pyshieldbuilder run --package ./dist/example.psb --password "strong-password"
 ```
+
+## CLI Commands
+
+- `build`
+- `verify`
+- `inspect`
+- `extract`
+- `run`
+- `benchmark`
+- `version`
+- `doctor`
+- `clean`
+
+## Documentation
+
+- [API](docs/api.md)
+- [Architecture](docs/architecture.md)
+- [Migration guide](docs/migration.md)
+- [Developer guide](docs/developer.md)
+- [Examples](examples/basic_build_and_run.py)
 
 ## Project Structure
 

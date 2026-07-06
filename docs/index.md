@@ -2,7 +2,7 @@
 
 ## Overview
 
-PyShieldBuilder builds encrypted package envelopes containing Python source archives and allows secure in-memory execution.
+PyShieldBuilder builds signed encrypted package envelopes containing transformed Python source archives and supports secure in-memory execution.
 
 ## Modules
 
@@ -10,14 +10,16 @@ PyShieldBuilder builds encrypted package envelopes containing Python source arch
 - `pyshieldbuilder.integrity`: SHA-256 integrity functions
 - `pyshieldbuilder.package`: source archive creation/extraction
 - `pyshieldbuilder.builder`: package construction/decryption loader
-- `pyshieldbuilder.runtime`: metadata inspection and in-memory execution
+- `pyshieldbuilder.runtime`: metadata inspection, verification, extraction, and in-memory execution
 - `pyshieldbuilder.config`: optional tool configuration loader
+- `pyshieldbuilder.transform`: source transformation pipeline
 - `pyshieldbuilder.cli`: command-line interface
 
-## CLI Commands
+## Guides
 
-- `pyshieldbuilder build`
-- `pyshieldbuilder inspect`
-- `pyshieldbuilder run`
+- [API documentation](api.md)
+- [Architecture documentation](architecture.md)
+- [Migration guide](migration.md)
+- [Developer guide](developer.md)
 
-See `docs/api.md` and `examples/` for usage details.
+See `examples/` for a runnable end-to-end example.

@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import tomllib
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
-import tomllib
 
 from .models import TransformationConfig
 
@@ -24,7 +24,7 @@ class BuilderConfig:
     transformation: TransformationConfig = TransformationConfig()
 
     @classmethod
-    def from_file(cls, path: str | Path) -> "BuilderConfig":
+    def from_file(cls, path: str | Path) -> BuilderConfig:
         data = tomllib.loads(Path(path).read_text(encoding="utf-8"))
         config = data.get("tool", {}).get("pyshieldbuilder", {})
         transform_config = config.get("transform", {})
@@ -39,7 +39,7 @@ class BuilderConfig:
             transformation=_transformation_from_mapping(transform_config),
         )
 
-    def with_overrides(self, **changes: Any) -> "BuilderConfig":
+    def with_overrides(self, **changes: Any) -> BuilderConfig:
         """Return a copy with selected fields replaced."""
         return replace(self, **changes)
 

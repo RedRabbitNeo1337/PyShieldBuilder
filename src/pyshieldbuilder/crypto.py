@@ -38,7 +38,9 @@ def derive_signing_key(password: str, salt: bytes) -> bytes:
     return _derive_key(password, salt, context=b":sig")
 
 
-def encrypt_bytes(plaintext: bytes, password: str, *, aad: bytes = b"") -> tuple[bytes, bytes, bytes]:
+def encrypt_bytes(
+    plaintext: bytes, password: str, *, aad: bytes = b""
+) -> tuple[bytes, bytes, bytes]:
     """Encrypt bytes using AES-256-GCM and return ``(salt, nonce, ciphertext)``."""
     salt = os.urandom(_SALT_SIZE)
     nonce = os.urandom(_NONCE_SIZE)

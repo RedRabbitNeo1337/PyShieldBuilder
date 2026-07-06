@@ -13,9 +13,7 @@ def _make_sample_app(base: Path) -> Path:
         encoding="utf-8",
     )
     (app / "main.py").write_text(
-        "from app.helpers import message\n"
-        "def run():\n"
-        "    return f'run:{message()}'\n",
+        "from app.helpers import message\ndef run():\n    return f'run:{message()}'\n",
         encoding="utf-8",
     )
     return app

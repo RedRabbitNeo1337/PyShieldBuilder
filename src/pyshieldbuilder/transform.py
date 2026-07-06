@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import ast
 import base64
 import os
-from typing import Iterable
+from collections.abc import Iterable
+from dataclasses import dataclass
+from typing import cast
 
 from .models import TransformationConfig
 
@@ -86,11 +87,17 @@ def _collect_local_names(body: Iterable[ast.stmt], args: ast.arguments) -> set[s
     for statement in body:
         collector.visit(statement)
     names.update(collector.names)
-    return {name for name in names if name and not name.startswith("__psb_") and name not in {"self", "cls"}}
+    return {
+        name
+        for name in names
+        if name and not name.startswith("__psb_") and name not in {"self", "cls"}
+    }
 
 
 class _ModuleTransformer(ast.NodeTransformer):
-    def __init__(self, *, config: TransformationConfig, deterministic_key: str | None = None) -> None:
+    def __init__(
+        self, *, config: TransformationConfig, deterministic_key: str | None = None
+    ) -> None:
         self.config = config
         self._scope_stack: list[dict[str, str]] = []
         self._module_imports: dict[str, str] = {}
@@ -137,7 +144,12 @@ class _ModuleTransformer(ast.NodeTransformer):
         return node
 
     def visit_ImportFrom(self, node: ast.ImportFrom) -> ast.stmt | list[ast.stmt]:
-        if not self.config.rewrite_imports or self._scope_stack or any(alias.name == "*" for alias in node.names) or node.level:
+        if (
+            not self.config.rewrite_imports
+            or self._scope_stack
+            or any(alias.name == "*" for alias in node.names)
+            or node.level
+        ):
             return node
         module_name = node.module or ""
         temp_module = self._next_name("mod")
@@ -157,13 +169,15 @@ class _ModuleTransformer(ast.NodeTransformer):
             )
         return [import_stmt, *assignments]
 
-    def visit_FunctionDef(self, node: ast.FunctionDef) -> ast.FunctionDef:
+    def visit_FunctionDef(
+        self, node: ast.FunctionDef | ast.AsyncFunctionDef
+    ) -> ast.FunctionDef | ast.AsyncFunctionDef:
         mapping = self._build_scope_mapping(node.body, node.args)
         self._scope_stack.append(mapping)
         try:
             node.args = self._rename_arguments(node.args, mapping)
             node.body = self._visit_stmt_list(node.body)
-            if self.config.flatten_control_flow:
+            if self.config.flatten_control_flow and isinstance(node, ast.FunctionDef):
                 node = self._maybe_flatten(node)
             if self.config.insert_dead_code:
                 node.body = [self._dead_block(), *node.body]
@@ -172,7 +186,7 @@ class _ModuleTransformer(ast.NodeTransformer):
         return node
 
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> ast.AsyncFunctionDef:
-        return self.visit_FunctionDef(node)  # type: ignore[return-value]
+        return cast(ast.AsyncFunctionDef, self.visit_FunctionDef(node))
 
     def visit_Name(self, node: ast.Name) -> ast.AST:
         for scope in reversed(self._scope_stack):
@@ -197,10 +211,18 @@ class _ModuleTransformer(ast.NodeTransformer):
     def visit_Constant(self, node: ast.Constant) -> ast.AST:
         if self.config.encrypt_strings and isinstance(node.value, str):
             return ast.copy_location(
-                ast.Call(func=ast.Name(id="__psb_decode", ctx=ast.Load()), args=[ast.Constant(value=_xor_encode(node.value, self._string_key))], keywords=[]),
+                ast.Call(
+                    func=ast.Name(id="__psb_decode", ctx=ast.Load()),
+                    args=[ast.Constant(value=_xor_encode(node.value, self._string_key))],
+                    keywords=[],
+                ),
                 node,
             )
-        if self.config.hide_constants and isinstance(node.value, int) and not isinstance(node.value, bool):
+        if (
+            self.config.hide_constants
+            and isinstance(node.value, int)
+            and not isinstance(node.value, bool)
+        ):
             seed = abs(node.value) + self._rename_counter + 1
             return ast.copy_location(
                 ast.Call(
@@ -241,23 +263,46 @@ class _ModuleTransformer(ast.NodeTransformer):
         return args
 
     def _dead_block(self) -> ast.If:
-        return ast.If(test=ast.Constant(value=0), body=[ast.Expr(value=ast.Constant(value=None))], orelse=[])
+        return ast.If(
+            test=ast.Constant(value=0), body=[ast.Expr(value=ast.Constant(value=None))], orelse=[]
+        )
 
     def _maybe_flatten(self, node: ast.FunctionDef) -> ast.FunctionDef:
         if len(node.body) < 2 or not isinstance(node.body[-1], ast.Return):
             return node
         body = node.body[:-1]
-        if any(isinstance(inner, (ast.If, ast.For, ast.While, ast.Try, ast.With, ast.Match, ast.Raise, ast.Return)) for inner in ast.walk(ast.Module(body=body, type_ignores=[]))):
+        control_flow_nodes = (
+            ast.If
+            | ast.For
+            | ast.While
+            | ast.Try
+            | ast.With
+            | ast.Match
+            | ast.Raise
+            | ast.Return
+        )
+        if any(
+            isinstance(inner, control_flow_nodes)
+            for inner in ast.walk(ast.Module(body=body, type_ignores=[]))
+        ):
             return node
         state_name = self._next_name("state")
         flattened: list[ast.stmt] = [
-            ast.Assign(targets=[ast.Name(id=state_name, ctx=ast.Store())], value=ast.Constant(value=0)),
-            ast.While(test=ast.Constant(value=True), body=self._flatten_body(body, node.body[-1], state_name), orelse=[]),
+            ast.Assign(
+                targets=[ast.Name(id=state_name, ctx=ast.Store())], value=ast.Constant(value=0)
+            ),
+            ast.While(
+                test=ast.Constant(value=True),
+                body=self._flatten_body(body, node.body[-1], state_name),
+                orelse=[],
+            ),
         ]
         node.body = flattened
         return node
 
-    def _flatten_body(self, body: list[ast.stmt], tail: ast.Return, state_name: str) -> list[ast.stmt]:
+    def _flatten_body(
+        self, body: list[ast.stmt], tail: ast.Return, state_name: str
+    ) -> list[ast.stmt]:
         blocks: list[ast.stmt] = []
         for index, statement in enumerate(body):
             blocks.append(
@@ -269,7 +314,10 @@ class _ModuleTransformer(ast.NodeTransformer):
                     ),
                     body=[
                         statement,
-                        ast.Assign(targets=[ast.Name(id=state_name, ctx=ast.Store())], value=ast.Constant(value=index + 1)),
+                        ast.Assign(
+                            targets=[ast.Name(id=state_name, ctx=ast.Store())],
+                            value=ast.Constant(value=index + 1),
+                        ),
                         ast.Continue(),
                     ],
                     orelse=[],
@@ -330,7 +378,11 @@ def _make_decode_helper(key: str) -> ast.FunctionDef:
             ast.Assign(
                 targets=[ast.Name(id="data", ctx=ast.Store())],
                 value=ast.Call(
-                    func=ast.Attribute(value=ast.Name(id="base64", ctx=ast.Load()), attr="b64decode", ctx=ast.Load()),
+                    func=ast.Attribute(
+                        value=ast.Name(id="base64", ctx=ast.Load()),
+                        attr="b64decode",
+                        ctx=ast.Load(),
+                    ),
                     args=[ast.Name(id="value", ctx=ast.Load())],
                     keywords=[],
                 ),
@@ -366,7 +418,10 @@ def _make_decode_helper(key: str) -> ast.FunctionDef:
                                     generators=[
                                         ast.comprehension(
                                             target=ast.Tuple(
-                                                elts=[ast.Name(id="index", ctx=ast.Store()), ast.Name(id="byte", ctx=ast.Store())],
+                                                elts=[
+                                                    ast.Name(id="index", ctx=ast.Store()),
+                                                    ast.Name(id="byte", ctx=ast.Store()),
+                                                ],
                                                 ctx=ast.Store(),
                                             ),
                                             iter=ast.Call(
@@ -393,6 +448,7 @@ def _make_decode_helper(key: str) -> ast.FunctionDef:
         decorator_list=[],
         returns=None,
         type_comment=None,
+        type_params=[],
     )
 
 
@@ -408,10 +464,19 @@ def _make_xor_helper() -> ast.FunctionDef:
             vararg=None,
             kwarg=None,
         ),
-        body=[ast.Return(value=ast.BinOp(left=ast.Name(id="left", ctx=ast.Load()), op=ast.BitXor(), right=ast.Name(id="right", ctx=ast.Load())))],
+        body=[
+            ast.Return(
+                value=ast.BinOp(
+                    left=ast.Name(id="left", ctx=ast.Load()),
+                    op=ast.BitXor(),
+                    right=ast.Name(id="right", ctx=ast.Load()),
+                )
+            )
+        ],
         decorator_list=[],
         returns=None,
         type_comment=None,
+        type_params=[],
     )
 
 
@@ -431,4 +496,5 @@ def _make_dead_helper() -> ast.FunctionDef:
         decorator_list=[],
         returns=None,
         type_comment=None,
+        type_params=[],
     )

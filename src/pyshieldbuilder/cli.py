@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict
 import json
 import os
-from pathlib import Path
 import shutil
+import sys
 import tempfile
 import time
+from dataclasses import asdict
+from pathlib import Path
 
 from . import __version__
 from .builder import PyShieldBuilder
@@ -75,11 +76,15 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _add_transform_flags(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--rename-identifiers", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument(
+        "--rename-identifiers", action=argparse.BooleanOptionalAction, default=False
+    )
     parser.add_argument("--encrypt-strings", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--hide-constants", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--insert-dead-code", action=argparse.BooleanOptionalAction, default=False)
-    parser.add_argument("--flatten-control-flow", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument(
+        "--flatten-control-flow", action=argparse.BooleanOptionalAction, default=False
+    )
     parser.add_argument("--rewrite-imports", action=argparse.BooleanOptionalAction, default=False)
 
 
@@ -103,7 +108,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "build":
         password = _resolve_password(getattr(args, "password", None))
         config = _build_config(args)
-        target = PyShieldBuilder(args.source, args.entrypoint, config=config).build(args.output, password)
+        target = PyShieldBuilder(args.source, args.entrypoint, config=config).build(
+            args.output, password
+        )
         print(str(Path(target).resolve()))
         return 0
 
@@ -191,7 +198,7 @@ def _build_config(args: argparse.Namespace) -> BuilderConfig:
 def _doctor_report() -> dict[str, object]:
     return {
         "status": "ok",
-        "python": tuple(os.sys.version_info[:3]),
+        "python": tuple(sys.version_info[:3]),
         "version": __version__,
         "tempdir": tempfile.gettempdir(),
     }

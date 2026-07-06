@@ -6,7 +6,6 @@ import hashlib
 import hmac
 from pathlib import Path
 
-
 _HASH_ALGO = "sha256"
 
 

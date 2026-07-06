@@ -5,10 +5,10 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import platform
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-import platform
 from typing import Any
 
 from .config import BuilderConfig
@@ -32,7 +32,9 @@ class PyShieldBuilder:
 
     def build(self, output_path: str | Path, password: str) -> Path:
         """Build and write an encrypted package."""
-        options = self.config or BuilderConfig(source_dir=str(self.source_dir), entrypoint=self.entrypoint)
+        options = self.config or BuilderConfig(
+            source_dir=str(self.source_dir), entrypoint=self.entrypoint
+        )
         return build_package(
             self.source_dir,
             output_path,
@@ -75,15 +77,21 @@ def build_package(
         entrypoint=entrypoint,
         file_count=len(source_map),
         payload_sha256=payload_sha256,
-        source_hashes={path: hash_bytes(source.encode("utf-8")) for path, source in transformed_map.items()},
+        source_hashes={
+            path: hash_bytes(source.encode("utf-8")) for path, source in transformed_map.items()
+        },
         transform_flags=config,
         reproducible=reproducible,
         package_version=package_version,
         metadata_version=metadata_version,
     )
     manifest_bytes = _canonical_json(manifest_body)
-    salt, nonce, ciphertext = _encrypt_archive(archive, password, manifest_bytes, reproducible=reproducible)
-    signature = sign_bytes(manifest_bytes, derive_signing_key(password, salt)) if sign_package else ""
+    salt, nonce, ciphertext = _encrypt_archive(
+        archive, password, manifest_bytes, reproducible=reproducible
+    )
+    signature = (
+        sign_bytes(manifest_bytes, derive_signing_key(password, salt)) if sign_package else ""
+    )
     manifest_sha256 = hash_bytes(manifest_bytes)
 
     envelope = {
@@ -111,9 +119,13 @@ def load_and_decrypt(package_path: str | Path, password: str) -> DecryptedPayloa
         ciphertext = base64.b64decode(envelope["ciphertext"])
         archive = decrypt_bytes(ciphertext, password, salt, nonce, aad=manifest_bytes)
         if envelope.get("signature"):
-            if not verify_signature(manifest_bytes, derive_signing_key(password, salt), envelope["signature"]):
+            if not verify_signature(
+                manifest_bytes, derive_signing_key(password, salt), envelope["signature"]
+            ):
                 raise InvalidPackageError("package signature verification failed")
-        if envelope.get("manifest_sha256") and envelope["manifest_sha256"] != hash_bytes(manifest_bytes):
+        if envelope.get("manifest_sha256") and envelope["manifest_sha256"] != hash_bytes(
+            manifest_bytes
+        ):
             raise InvalidPackageError("manifest integrity verification failed")
     except InvalidPackageError:
         raise
@@ -141,7 +153,9 @@ def load_and_decrypt(package_path: str | Path, password: str) -> DecryptedPayloa
     return DecryptedPayload(metadata=package_meta, archive_bytes=archive)
 
 
-def _transform_source_map(source_map: dict[str, str], config: TransformationConfig) -> dict[str, str]:
+def _transform_source_map(
+    source_map: dict[str, str], config: TransformationConfig
+) -> dict[str, str]:
     transformed: dict[str, str] = {}
     for relative_path, source in source_map.items():
         if config == TransformationConfig():
@@ -170,7 +184,11 @@ def _build_manifest(
     package_version: str,
     metadata_version: int,
 ) -> dict[str, Any]:
-    created_at = datetime.fromtimestamp(0, UTC).isoformat() if reproducible else datetime.now(UTC).isoformat()
+    created_at = (
+        datetime.fromtimestamp(0, UTC).isoformat()
+        if reproducible
+        else datetime.now(UTC).isoformat()
+    )
     return {
         "metadata_version": metadata_version,
         "format_version": _FORMAT_VERSION,
@@ -197,7 +215,9 @@ def _build_manifest(
 
 
 def _canonical_json(data: dict[str, Any]) -> bytes:
-    return json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    return json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode(
+        "utf-8"
+    )
 
 
 def _encrypt_archive(
@@ -216,7 +236,9 @@ def _encrypt_archive(
     return encrypt_bytes(archive, password, aad=aad)
 
 
-def _deterministic_transform_key(relative_path: str, source: str, config: TransformationConfig) -> str:
+def _deterministic_transform_key(
+    relative_path: str, source: str, config: TransformationConfig
+) -> str:
     digest = hashlib.sha256(
         (
             relative_path

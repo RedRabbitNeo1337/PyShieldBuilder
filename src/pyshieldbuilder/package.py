@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import io
-from pathlib import Path
 import tarfile
-from typing import Mapping
-
+from collections.abc import Mapping
+from pathlib import Path
 
 _TAR_MTIME = 1_700_000_000
 
@@ -61,7 +60,9 @@ def extract_source_archive(archive_bytes: bytes) -> dict[str, str]:
     return source_map
 
 
-def extract_source_archive_to_directory(archive_bytes: bytes, destination: str | Path) -> list[Path]:
+def extract_source_archive_to_directory(
+    archive_bytes: bytes, destination: str | Path
+) -> list[Path]:
     """Extract a source archive to *destination* and return the written files."""
     root = Path(destination)
     root.mkdir(parents=True, exist_ok=True)

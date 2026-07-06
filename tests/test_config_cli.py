@@ -57,22 +57,25 @@ def test_cli_build_inspect_verify_extract_run_benchmark(tmp_path: Path, capsys) 
     (app / "main.py").write_text("def run():\n    return 'cli-ok'\n", encoding="utf-8")
 
     package = tmp_path / "pkg.psb"
-    assert main(
-        [
-            "build",
-            "--source",
-        str(tmp_path),
-            "--entrypoint",
-            "app.main:run",
-            "--output",
-            str(package),
-            "--password",
-            "p",
-            "--encrypt-strings",
-            "--hide-constants",
-            "--rewrite-imports",
-        ]
-    ) == 0
+    assert (
+        main(
+            [
+                "build",
+                "--source",
+                str(tmp_path),
+                "--entrypoint",
+                "app.main:run",
+                "--output",
+                str(package),
+                "--password",
+                "p",
+                "--encrypt-strings",
+                "--hide-constants",
+                "--rewrite-imports",
+            ]
+        )
+        == 0
+    )
     build_out = capsys.readouterr().out
     assert str(package.resolve()) in build_out
 
@@ -85,7 +88,10 @@ def test_cli_build_inspect_verify_extract_run_benchmark(tmp_path: Path, capsys) 
     assert verify_out["format_version"] >= 1
 
     extracted = tmp_path / "extracted"
-    assert main(["extract", "--package", str(package), "--password", "p", "--output", str(extracted)]) == 0
+    assert (
+        main(["extract", "--package", str(package), "--password", "p", "--output", str(extracted)])
+        == 0
+    )
     extract_out = json.loads(capsys.readouterr().out)
     assert extract_out
     assert (extracted / "app" / "main.py").exists()
@@ -93,7 +99,9 @@ def test_cli_build_inspect_verify_extract_run_benchmark(tmp_path: Path, capsys) 
     assert main(["run", "--package", str(package), "--password", "p"]) == 0
     assert "cli-ok" in capsys.readouterr().out
 
-    assert main(["benchmark", "--package", str(package), "--password", "p", "--iterations", "2"]) == 0
+    assert (
+        main(["benchmark", "--package", str(package), "--password", "p", "--iterations", "2"]) == 0
+    )
     benchmark_out = json.loads(capsys.readouterr().out)
     assert benchmark_out["iterations"] == 2
     assert benchmark_out["average_seconds"] >= 0

@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import base64
 import hashlib
-import json
 import io
+import json
 import tarfile
 from pathlib import Path
 
 import pytest
 
+from pyshieldbuilder import runtime
 from pyshieldbuilder.builder import PyShieldBuilder, build_package, load_and_decrypt
 from pyshieldbuilder.config import BuilderConfig
 from pyshieldbuilder.crypto import derive_signing_key, encrypt_bytes, sign_bytes
@@ -16,13 +17,17 @@ from pyshieldbuilder.exceptions import InvalidPackageError, PackageBuildError, R
 from pyshieldbuilder.models import TransformationConfig
 from pyshieldbuilder.package import (
     collect_source_files,
-    create_source_archive_from_mapping,
     create_source_archive,
+    create_source_archive_from_mapping,
     extract_source_archive,
     extract_source_archive_to_directory,
 )
-from pyshieldbuilder import runtime
-from pyshieldbuilder.runtime import execute_package, extract_package, inspect_package, verify_package
+from pyshieldbuilder.runtime import (
+    execute_package,
+    extract_package,
+    inspect_package,
+    verify_package,
+)
 from pyshieldbuilder.transform import _expand_nodes, transform_source
 
 
@@ -95,12 +100,16 @@ def test_transform_pipeline_async_edges() -> None:
         "        marker = nested('x')\n"
         "        raise ValueError('boom')\n"
         "    except ValueError:\n"
-        "        return operating_system.name + ':' + marker + ':' + str(args) + ':' + str(kwargs) + ':' + str(flag) + ':' + str(nothing) + ':' + str(local_math.ceil(1))\n"
+        "        return operating_system.name + ':' + marker + ':' + str(args)"
+        " + ':' + str(kwargs) + ':' + str(flag) + ':' "
+        "+ str(nothing) + ':' + str(local_math.ceil(1))\n"
     )
     artifact = transform_source(
         source,
         module_name="async_sample",
-        config=TransformationConfig(rename_identifiers=True, flatten_control_flow=True, rewrite_imports=True),
+        config=TransformationConfig(
+            rename_identifiers=True, flatten_control_flow=True, rewrite_imports=True
+        ),
     )
     namespace: dict[str, object] = {}
     exec(artifact.source, namespace)
@@ -193,7 +202,9 @@ def test_build_reproducible_and_execute(tmp_path: Path) -> None:
         ),
     )
 
-    package_one = PyShieldBuilder(app, "app.main:run", config=config).build(tmp_path / "one.psb", "top-secret")
+    package_one = PyShieldBuilder(app, "app.main:run", config=config).build(
+        tmp_path / "one.psb", "top-secret"
+    )
     package_two = build_package(
         app,
         tmp_path / "two.psb",
@@ -255,7 +266,9 @@ def test_backward_compatible_package_format(tmp_path: Path) -> None:
     assert execute_package(str(package_file), "legacy") == "run:ok:7:4"
 
 
-def test_corrupted_package_and_runtime_protection(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_corrupted_package_and_runtime_protection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     app = _make_sample_app(tmp_path)
     package_file = build_package(app, tmp_path / "broken.psb", "secret", "app.main:run")
     envelope = json.loads(package_file.read_text(encoding="utf-8"))
@@ -267,7 +280,9 @@ def test_corrupted_package_and_runtime_protection(tmp_path: Path, monkeypatch: p
 
     monkeypatch.setattr("builtins.open", lambda *args, **kwargs: None)
     with pytest.raises(RuntimeExecutionError):
-        execute_package(str(build_package(app, tmp_path / "prot.psb", "secret", "app.main:run")), "secret")
+        execute_package(
+            str(build_package(app, tmp_path / "prot.psb", "secret", "app.main:run")), "secret"
+        )
 
 
 def test_runtime_edge_cases(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -285,9 +300,13 @@ def test_runtime_edge_cases(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
 
     tampered = json.loads(package_file.read_text(encoding="utf-8"))
     tampered["manifest"]["source_hashes"]["app/main.py"] = "f" * 64
-    manifest_bytes = json.dumps(tampered["manifest"], sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    manifest_bytes = json.dumps(
+        tampered["manifest"], sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ).encode("utf-8")
     tampered["manifest_sha256"] = hashlib.sha256(manifest_bytes).hexdigest()
-    tampered["signature"] = sign_bytes(manifest_bytes, derive_signing_key("secret", base64.b64decode(tampered["salt"])))
+    tampered["signature"] = sign_bytes(
+        manifest_bytes, derive_signing_key("secret", base64.b64decode(tampered["salt"]))
+    )
     package_file.write_text(json.dumps(tampered, indent=2, sort_keys=True), encoding="utf-8")
     with pytest.raises(InvalidPackageError):
         execute_package(str(package_file), "secret")
@@ -316,14 +335,21 @@ def test_manifest_tamper_detection(tmp_path: Path) -> None:
 
     envelope = json.loads(package_file.read_text(encoding="utf-8"))
     envelope["manifest_sha256"] = "1" * 64
-    envelope["signature"] = sign_bytes(json.dumps(envelope["manifest"], sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8"), key)
+    envelope["signature"] = sign_bytes(
+        json.dumps(
+            envelope["manifest"], sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        ).encode("utf-8"),
+        key,
+    )
     package_file.write_text(json.dumps(envelope, indent=2, sort_keys=True), encoding="utf-8")
     with pytest.raises(InvalidPackageError):
         load_and_decrypt(package_file, "secret")
 
     envelope = json.loads(package_file.read_text(encoding="utf-8"))
     envelope["manifest"]["payload_sha256"] = "2" * 64
-    manifest_bytes = json.dumps(envelope["manifest"], sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    manifest_bytes = json.dumps(
+        envelope["manifest"], sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ).encode("utf-8")
     envelope["manifest_sha256"] = hashlib.sha256(manifest_bytes).hexdigest()
     envelope["signature"] = sign_bytes(manifest_bytes, key)
     package_file.write_text(json.dumps(envelope, indent=2, sort_keys=True), encoding="utf-8")
